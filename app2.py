@@ -1,60 +1,68 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime
 
-# Dane menu dla różnych restauracji
-menus = {
-    "Restauracja Włoska": [
-        {"nazwa": "Pizza Margherita", "dodatki": ["Sos czosnkowy", "Oliwki", "Ser extra"], "cena": 30},
-        {"nazwa": "Spaghetti Carbonara", "dodatki": ["Ser extra", "Grzanki", "Boczek extra"], "cena": 25},
-        {"nazwa": "Lasagne", "dodatki": ["Sos czosnkowy", "Ser extra"], "cena": 35},
-    ],
-    "Restauracja Polska": [
-        {"nazwa": "Schabowy z ziemniakami", "dodatki": ["Surówka", "Sos grzybowy"], "cena": 40},
-        {"nazwa": "Pierogi ruskie", "dodatki": ["Śmietana", "Skwarki", "Sos czosnkowy"], "cena": 20},
-        {"nazwa": "Żurek z jajkiem", "dodatki": ["Chleb", "Kiełbasa extra"], "cena": 18},
-    ]
+# Dane restauracji, menu oraz godzin otwarcia
+restaurants = {
+    'Restauracja 1 - Włoska': {
+        'menu': [
+            {'dish': 'Pizza Margherita', 'price': 25, 'addons': ['Sos czosnkowy', 'Sos pomidorowy']},
+            {'dish': 'Spaghetti Carbonara', 'price': 30, 'addons': ['Ser Parmezan', 'Chleb czosnkowy']}
+        ],
+        'hours': {'open': '12:00', 'close': '22:00'}
+    },
+    'Restauracja 2 - Polska': {
+        'menu': [
+            {'dish': 'Pierogi ruskie', 'price': 20, 'addons': ['Sos śmietanowy', 'Cebulka']},
+            {'dish': 'Schabowy z ziemniakami', 'price': 35, 'addons': ['Kapusta kiszona', 'Ogórek kiszony']}
+        ],
+        'hours': {'open': '10:00', 'close': '20:00'}
+    }
 }
 
+# Funkcja do sprawdzenia, czy restauracja jest otwarta
+def is_restaurant_open(open_time, close_time):
+    current_time = datetime.now().strftime("%H:%M")
+    return open_time <= current_time <= close_time
+
+# Interfejs aplikacji
+st.title("Złóż zamówienie online")
+
 # Wybór restauracji
-st.title("Składanie zamówień online")
-restauracja = st.selectbox("Wybierz restaurację", ["Restauracja Włoska", "Restauracja Polska"])
+selected_restaurant = st.selectbox("Wybierz restaurację", list(restaurants.keys()))
 
-# Wyświetlanie menu dla wybranej restauracji
-st.header(f"Menu - {restauracja}")
-menu = menus[restauracja]
+# Informacje o wybranej restauracji
+restaurant_info = restaurants[selected_restaurant]
+open_time = restaurant_info['hours']['open']
+close_time = restaurant_info['hours']['close']
 
-zamowienie = []  # Lista zamówień użytkownika
-
-for pozycja in menu:
-    st.subheader(pozycja["nazwa"])
-    st.write(f"Cena: {pozycja['cena']} PLN")
-
-    # Wybór ilości
-    ilosc = st.number_input(f"Ilość {pozycja['nazwa']}", min_value=0, max_value=10, step=1, key=pozycja["nazwa"])
-
-    # Wybór dodatków
-    wybrane_dodatki = st.multiselect(f"Zaznacz dodatki do {pozycja['nazwa']}", pozycja["dodatki"], key=pozycja["nazwa"]+"dodatki")
-
-    if ilosc > 0:
-        zamowienie.append({
-            "nazwa": pozycja["nazwa"],
-            "ilosc": ilosc,
-            "cena": pozycja["cena"],
-            "dodatki": wybrane_dodatki
-        })
-
-# Podsumowanie zamówienia
-if zamowienie:
-    st.header("Twoje zamówienie")
-    laczna_kwota = 0
-    for pozycja in zamowienie:
-        pozycja_cena = pozycja["ilosc"] * pozycja["cena"]
-        laczna_kwota += pozycja_cena
-        st.write(f"{pozycja['ilosc']}x {pozycja['nazwa']} ({', '.join(pozycja['dodatki']) if pozycja['dodatki'] else 'bez dodatków'}) - {pozycja_cena} PLN")
-
-    st.write(f"**Łączna kwota do zapłaty: {laczna_kwota} PLN**")
-
-    # Możliwość potwierdzenia zamówienia
+st.write(f"Godziny otwarcia: {open_time} - {close_time}")
+if is_restaurant_open(open_time, close_time):
+    st.success("Restauracja jest otwarta, możesz złożyć zamówienie.")
+    
+    # Wybór dań z menu
+    selected_dishes = []
+    for item in restaurant_info['menu']:
+        st.subheader(f"{item['dish']} - {item['price']} PLN")
+        quantity = st.number_input(f"Ilość {item['dish']}", min_value=0, max_value=10, step=1, key=item['dish'])
+        if quantity > 0:
+            addons = st.multiselect(f"Dodatki do {item['dish']}", item['addons'], key=f"addons_{item['dish']}")
+            selected_dishes.append({
+                'dish': item['dish'],
+                'quantity': quantity,
+                'addons': addons,
+                'price': item['price'] * quantity
+            })
+    
+    # Podsumowanie zamówienia
     if st.button("Złóż zamówienie"):
-        st.success("Dziękujemy! Twoje zamówienie zostało przyjęte.")
+        if selected_dishes:
+            total_price = sum(d['price'] for d in selected_dishes)
+            st.write("Podsumowanie zamówienia:")
+            for dish in selected_dishes:
+                st.write(f"{dish['quantity']}x {dish['dish']} - Dodatki: {', '.join(dish['addons']) if dish['addons'] else 'Brak'}")
+            st.write(f"Łączna kwota: {total_price} PLN")
+        else:
+            st.warning("Nie wybrano żadnych dań.")
 else:
-    st.write("Nie wybrano żadnych pozycji.")
+    st.error("Restauracja jest zamknięta, nie można złożyć zamówienia.")
