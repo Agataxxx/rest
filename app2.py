@@ -1,68 +1,82 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import pytz
 
-# Dane restauracji, menu oraz godzin otwarcia
+# Ustawienie strefy czasowej Warszawy
+tz = pytz.timezone('Europe/Warsaw')
+
+# Dane restauracji
 restaurants = {
-    'Restauracja 1 - Włoska': {
-        'menu': [
-            {'dish': 'Pizza Margherita', 'price': 25, 'addons': ['Sos czosnkowy', 'Sos pomidorowy']},
-            {'dish': 'Spaghetti Carbonara', 'price': 30, 'addons': ['Ser Parmezan', 'Chleb czosnkowy']}
-        ],
-        'hours': {'open': '12:00', 'close': '22:00'}
+    'Włoska Restauracja': {
+        'address': 'ul. Marszałkowska 1, Warszawa',
+        'opening_hours': {'open': 12, 'close': 22},  # Otwarta od 12:00 do 22:00
+        'menu': {
+            'Pizza Margherita': {'price': 25, 'extras': ['extra cheese', 'extra sauce']},
+            'Spaghetti Carbonara': {'price': 30, 'extras': ['extra bacon', 'extra cheese']},
+            'Tiramisu': {'price': 15, 'extras': []}
+        },
+        'map_url': 'https://goo.gl/maps/example1'
     },
-    'Restauracja 2 - Polska': {
-        'menu': [
-            {'dish': 'Pierogi ruskie', 'price': 20, 'addons': ['Sos śmietanowy', 'Cebulka']},
-            {'dish': 'Schabowy z ziemniakami', 'price': 35, 'addons': ['Kapusta kiszona', 'Ogórek kiszony']}
-        ],
-        'hours': {'open': '10:00', 'close': '20:00'}
+    'Polska Restauracja': {
+        'address': 'ul. Nowy Świat 2, Warszawa',
+        'opening_hours': {'open': 10, 'close': 20},  # Otwarta od 10:00 do 20:00
+        'menu': {
+            'Schabowy z ziemniakami': {'price': 35, 'extras': ['extra ziemniaki', 'extra surówka']},
+            'Pierogi ruskie': {'price': 20, 'extras': ['extra cebula', 'extra śmietana']},
+            'Sernik': {'price': 10, 'extras': []}
+        },
+        'map_url': 'https://goo.gl/maps/example2'
     }
 }
 
-# Funkcja do sprawdzenia, czy restauracja jest otwarta
-def is_restaurant_open(open_time, close_time):
-    current_time = datetime.now().strftime("%H:%M")
-    return open_time <= current_time <= close_time
+# Funkcja sprawdzająca czy restauracja jest otwarta
+def is_open(restaurant):
+    current_time = datetime.now(tz).hour
+    return restaurants[restaurant]['opening_hours']['open'] <= current_time < restaurants[restaurant]['opening_hours']['close']
 
-# Interfejs aplikacji
-st.title("Złóż zamówienie online")
+# Formularz wyboru restauracji
+st.title("Złóż zamówienie w swojej ulubionej restauracji")
+restaurant_choice = st.selectbox("Wybierz restaurację", list(restaurants.keys()))
 
-# Wybór restauracji
-selected_restaurant = st.selectbox("Wybierz restaurację", list(restaurants.keys()))
+# Wyświetlanie szczegółów restauracji
+restaurant_info = restaurants[restaurant_choice]
+st.write(f"Adres: {restaurant_info['address']}")
+st.write(f"Godziny otwarcia: {restaurant_info['opening_hours']['open']}:00 - {restaurant_info['opening_hours']['close']}:00")
+st.write(f"[Zobacz na mapie]({restaurant_info['map_url']})")
 
-# Informacje o wybranej restauracji
-restaurant_info = restaurants[selected_restaurant]
-open_time = restaurant_info['hours']['open']
-close_time = restaurant_info['hours']['close']
-
-st.write(f"Godziny otwarcia: {open_time} - {close_time}")
-if is_restaurant_open(open_time, close_time):
+# Sprawdzanie, czy restauracja jest otwarta
+if not is_open(restaurant_choice):
+    st.error("Restauracja jest zamknięta, nie można złożyć zamówienia.")
+else:
     st.success("Restauracja jest otwarta, możesz złożyć zamówienie.")
     
-    # Wybór dań z menu
-    selected_dishes = []
-    for item in restaurant_info['menu']:
-        st.subheader(f"{item['dish']} - {item['price']} PLN")
-        quantity = st.number_input(f"Ilość {item['dish']}", min_value=0, max_value=10, step=1, key=item['dish'])
-        if quantity > 0:
-            addons = st.multiselect(f"Dodatki do {item['dish']}", item['addons'], key=f"addons_{item['dish']}")
-            selected_dishes.append({
-                'dish': item['dish'],
-                'quantity': quantity,
-                'addons': addons,
-                'price': item['price'] * quantity
-            })
+    # Formularz wyboru pozycji z menu
+    st.subheader(f"Menu - {restaurant_choice}")
     
-    # Podsumowanie zamówienia
+    order = {}
+    total_price = 0
+    
+    for item, details in restaurant_info['menu'].items():
+        # Wybór ilości dań
+        quantity = st.number_input(f"{item} - {details['price']} PLN", min_value=0, max_value=10, step=1)
+        if quantity > 0:
+            order[item] = {'quantity': quantity, 'extras': [], 'price': details['price'] * quantity}
+            total_price += details['price'] * quantity
+            
+            # Wybór dodatków, jeśli są dostępne
+            if details['extras']:
+                extras = st.multiselect(f"Wybierz dodatki do {item}", details['extras'])
+                order[item]['extras'] = extras
+    
+    # Wyświetlenie podsumowania zamówienia
     if st.button("Złóż zamówienie"):
-        if selected_dishes:
-            total_price = sum(d['price'] for d in selected_dishes)
-            st.write("Podsumowanie zamówienia:")
-            for dish in selected_dishes:
-                st.write(f"{dish['quantity']}x {dish['dish']} - Dodatki: {', '.join(dish['addons']) if dish['addons'] else 'Brak'}")
-            st.write(f"Łączna kwota: {total_price} PLN")
+        if total_price > 0:
+            st.write("Twoje zamówienie:")
+            for item, details in order.items():
+                st.write(f"{item} x{details['quantity']}")
+                if details['extras']:
+                    st.write(f"Dodatki: {', '.join(details['extras'])}")
+            st.write(f"Łączna cena: {total_price} PLN")
         else:
-            st.warning("Nie wybrano żadnych dań.")
-else:
-    st.error("Restauracja jest zamknięta, nie można złożyć zamówienia.")
+            st.warning("Nie wybrałeś żadnych dań.")
